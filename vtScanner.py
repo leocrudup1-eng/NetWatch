@@ -135,11 +135,18 @@ def scan(client: vt.Client | None, seen_bad: set) -> int:
 
         if is_bad or SHOW_ALL:
             print(f"{ip}  {msg}")
+            seen_hashes = set()
             for rec in records:
+                hash_msg = ""
+                if client and rec["exe_hash"] and rec["exe_hash"] not in seen_hashes:
+                    seen_hashes.add(rec["exe_hash"])
+                    _, hash_msg = vt_lookup_hash(client, rec["exe_hash"])
+                    hash_msg = f"  file: {hash_msg}"
                 print(
                     f"  pid={rec['pid']}  proc={rec['name']}  hash={rec['exe_hash']}\n"
                     f"  {rec['transport']}/{rec['protocol']}  {rec['status']}  "
                     f"local={rec['laddr']}  remote={rec['raddr']}"
+                    + (f"\n{hash_msg}" if hash_msg else "")
                 )
             print()
 
