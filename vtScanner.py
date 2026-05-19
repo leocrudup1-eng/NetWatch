@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
 """
 vtScanner.py — checks active network connections against VirusTotal.
-Run with: python3 vtScanner.py
+Run with:
+  python3 vtScanner.py                   # one-shot
+  python3 vtScanner.py --monitor         # continuous (60s interval)
+  python3 vtScanner.py --monitor --interval 30
 """
 
 import os
+import time
+import argparse
 import ipaddress
 import hashlib
+import subprocess
+from datetime import datetime
+
 import psutil
 import vt
 
@@ -43,14 +51,12 @@ def ip_to_proc_map(conns: list) -> dict:
         transport = "TCP" if c.type.name == "SOCK_STREAM" else "UDP"
 
         name = None
-        exe = None
         exe_hash = None
         if c.pid is not None:
             try:
                 proc = psutil.Process(c.pid)
                 name = proc.name()
-                exe = proc.exe()
-                exe_hash = get_sha256_hash(exe)
+                exe_hash = get_sha256_hash(proc.exe())
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
 
@@ -105,7 +111,17 @@ def vt_lookup_hash(client: vt.Client, file_hash: str) -> tuple[bool, str]:
     return vt_lookup(client, f"/files/{file_hash}")
 
 
-def scan(client: vt.Client | None) -> int:
+def desktop_alert(ip: str, msg: str):
+    try:
+        subprocess.run(
+            ["notify-send", "-u", "critical", "vtScanner: Suspicious Connection", f"{ip}\n{msg}"],
+            check=False,
+        )
+    except FileNotFoundError:
+        pass
+
+
+def scan(client: vt.Client | None, seen_bad: set) -> int:
     conns = collect_connections()
     ip_map = ip_to_proc_map(conns)
 
@@ -129,23 +145,53 @@ def scan(client: vt.Client | None) -> int:
 
         if is_bad:
             suspicious_count += 1
+            if ip not in seen_bad:
+                seen_bad.add(ip)
+                desktop_alert(ip, msg)
 
     return suspicious_count
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Check network connections against VirusTotal.")
+    parser.add_argument("--monitor", action="store_true", help="Run continuously")
+    parser.add_argument("--interval", type=int, default=60, help="Seconds between scans (default: 60)")
+    args = parser.parse_args()
+
     if not VT_API_KEY:
         print("Warning: VT_API_KEY not set. Only showing IPs and processes.\n")
-        suspicious_count = scan(None)
-    else:
-        with vt.Client(VT_API_KEY) as client:
-            suspicious_count = scan(client)
 
-    if not SHOW_ALL:
-        if suspicious_count == 0:
+    seen_bad: set = set()
+
+    def run_scan(client):
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"--- scan {ts} ---")
+        count = scan(client, seen_bad)
+        if not SHOW_ALL and count == 0:
             print("No suspicious IPs found.")
+        elif not SHOW_ALL:
+            print(f"Total suspicious IPs: {count}")
+
+    if args.monitor:
+        print(f"Monitoring every {args.interval}s. Press Ctrl+C to stop.\n")
+        try:
+            if VT_API_KEY:
+                with vt.Client(VT_API_KEY) as client:
+                    while True:
+                        run_scan(client)
+                        time.sleep(args.interval)
+            else:
+                while True:
+                    run_scan(None)
+                    time.sleep(args.interval)
+        except KeyboardInterrupt:
+            print("\nStopped.")
+    else:
+        if VT_API_KEY:
+            with vt.Client(VT_API_KEY) as client:
+                run_scan(client)
         else:
-            print(f"Total suspicious IPs: {suspicious_count}")
+            run_scan(None)
 
 
 if __name__ == "__main__":
