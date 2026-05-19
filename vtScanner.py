@@ -138,7 +138,7 @@ def scan(client: vt.Client | None, seen_bad: set) -> int:
             seen_hashes = set()
             for rec in records:
                 hash_msg = ""
-                if client and rec["exe_hash"] and rec["exe_hash"] not in seen_hashes:
+                if is_bad and client and rec["exe_hash"] and rec["exe_hash"] not in seen_hashes:
                     seen_hashes.add(rec["exe_hash"])
                     _, hash_msg = vt_lookup_hash(client, rec["exe_hash"])
                     hash_msg = f"  file: {hash_msg}"
