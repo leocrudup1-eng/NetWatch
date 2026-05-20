@@ -1,4 +1,4 @@
-# vtScanner
+# NetWatch
 
 A Python-based network monitoring tool that maps active connections to their processes and checks remote IPs against [VirusTotal](https://www.virustotal.com) for known threats.
 
@@ -12,6 +12,7 @@ Built as a portfolio project while studying for SOC analyst roles.
 - Filters to public IPs only (ignores loopback, private, and link-local)
 - Maps each connection to its process name, PID, and a SHA-256 hash of the process executable
 - Queries VirusTotal for each remote IP and flags anything with a malicious or suspicious detection
+- When an IP is flagged, also checks the connecting process hash against VirusTotal for host-level correlation
 - Supports one-shot mode or continuous monitoring with desktop alerts for new threats
 
 ---
@@ -24,7 +25,7 @@ Built as a portfolio project while studying for SOC analyst roles.
 
 Install dependencies:
 ```bash
-pip install psutil vt-py
+pip install -r requirements.txt
 ```
 
 ---
@@ -42,17 +43,17 @@ export VT_API_KEY=your_api_key_here
 
 **One-shot scan:**
 ```bash
-python3 vtScanner.py
+python3 Netwatch.py
 ```
 
 **Continuous monitoring (default 60s interval):**
 ```bash
-python3 vtScanner.py --monitor
+python3 Netwatch.py --monitor
 ```
 
 **Custom interval:**
 ```bash
-python3 vtScanner.py --monitor --interval 30
+python3 Netwatch.py --monitor --interval 30
 ```
 
 If `VT_API_KEY` is not set, the tool will still run and display active connections — just without VirusTotal lookups.
@@ -66,13 +67,14 @@ If `VT_API_KEY` is not set, the tool will still run and display active connectio
 203.0.113.42  [ALERT] 12 malicious, 3 suspicious / 90
   pid=3821  proc=curl  hash=a3f1...
   TCP/IPv4  ESTABLISHED  local=('192.168.1.5', 52100)  remote=('203.0.113.42', 443)
+  file: [ALERT] 8 malicious, 1 suspicious / 90
 
 142.250.80.14  [OK] 0 malicious, 0 suspicious / 90
   pid=1042  proc=chrome  hash=9c2d...
   TCP/IPv4  ESTABLISHED  local=('192.168.1.5', 51888)  remote=('142.250.80.14', 443)
 ```
 
-Desktop alerts fire via `notify-send` when a new suspicious IP is detected in monitor mode.
+Desktop alerts fire via `notify-send` when a new suspicious IP is detected in monitor mode. Each IP only alerts once per session to avoid repeated notifications.
 
 ---
 
@@ -80,4 +82,4 @@ Desktop alerts fire via `notify-send` when a new suspicious IP is detected in mo
 
 - Run with `sudo` if some connections show no process info (some sockets require elevated permissions to inspect)
 - VirusTotal free tier allows 4 lookups/minute — lower `--interval` values may hit rate limits
-- The tool only alerts once per suspicious IP per session, so repeated polls won't spam notifications
+- File hash lookups only run on flagged IPs to avoid unnecessary API calls

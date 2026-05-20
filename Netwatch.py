@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-vtScanner.py — checks active network connections against VirusTotal.
+Netwatch.py — checks active network connections against VirusTotal.
 Run with:
-  python3 vtScanner.py                   # one-shot
-  python3 vtScanner.py --monitor         # continuous (60s interval)
-  python3 vtScanner.py --monitor --interval 30
+  python3 Netwatch.py                   # one-shot
+  python3 Netwatch.py --monitor         # continuous (60s interval)
+  python3 Netwatch.py --monitor --interval 30
 """
 
 import os
@@ -114,7 +114,7 @@ def vt_lookup_hash(client: vt.Client, file_hash: str) -> tuple[bool, str]:
 def desktop_alert(ip: str, msg: str):
     try:
         subprocess.run(
-            ["notify-send", "-u", "critical", "vtScanner: Suspicious Connection", f"{ip}\n{msg}"],
+            ["notify-send", "-u", "critical", "Netwatch: Suspicious Connection", f"{ip}\n{msg}"],
             check=False,
         )
     except FileNotFoundError:
